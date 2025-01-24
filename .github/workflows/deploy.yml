@@ -37,7 +37,14 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             cd /srv/wearloot-api/
+            
+            # Authenticate to GHCR on the VPS
+            echo "${{ secrets.PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Set environment variables for docker-compose
             echo "DOCKER_IMAGE=ghcr.io/${{ github.repository }}:latest" > .env
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+            
+            # Pull the latest Docker image and restart the app
             docker-compose pull
             docker-compose up -d
