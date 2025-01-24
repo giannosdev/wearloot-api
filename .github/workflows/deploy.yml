@@ -37,7 +37,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             cd /srv/wearloot-api/
-            echo "DOCKER_IMAGE=ghcr.io/${{ github.actor }}/${{ github.repository }}:latest" > .env
+            echo "DOCKER_IMAGE=ghcr.io/${{ github.repository }}:latest" > .env
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
             docker-compose pull
             docker-compose up -d
