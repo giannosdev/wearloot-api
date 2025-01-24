@@ -26,7 +26,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           source: ./docker-compose.yml
-          target: /path/to/deployment/
+          target: /srv/wearloot-api/
 
       # 4. Deploy using docker-compose
       - name: Deploy to VPS
@@ -36,7 +36,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            cd /path/to/deployment
+            cd /srv/wearloot-api/
             echo "DOCKER_IMAGE=ghcr.io/${{ github.actor }}/${{ github.repository }}:latest" > .env
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
             docker-compose pull
