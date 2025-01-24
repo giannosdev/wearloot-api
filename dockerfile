@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Create a minimal production image
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
@@ -39,5 +39,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Expose the application's port
 EXPOSE 3000
 
-# Command to run the app
-CMD ["node", "dist/main"]
+# Command to run Prisma migrations and start the app
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
