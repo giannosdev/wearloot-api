@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - v*  # Trigger on versioned tags like v1.0.0
 
 jobs:
   deploy:
@@ -16,9 +18,20 @@ jobs:
 
       # 2. Log in to GHCR
       - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.PAT }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-      # 3. Copy docker-compose.yml to VPS
+      # 3. Build and Push Docker Image to GHCR
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}
+          TAG=${{ github.sha }}
+          # Build the Docker image with both 'latest' and commit-specific tags
+          docker build -t $IMAGE_NAME:latest -t $IMAGE_NAME:$TAG .
+          # Push both tags to the registry
+          docker push $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:$TAG
+
+      # 4. Copy docker-compose.yml to VPS
       - name: Copy docker-compose.yml to VPS
         uses: appleboy/scp-action@v0.1.3
         with:
@@ -28,7 +41,7 @@ jobs:
           source: ./docker-compose.yml
           target: /srv/wearloot-api/
 
-      # 4. Deploy using docker-compose
+      # 5. Deploy using docker-compose
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v0.1.4
         with:
@@ -39,7 +52,7 @@ jobs:
             cd /srv/wearloot-api/
             
             # Authenticate to GHCR on the VPS
-            echo "${{ secrets.PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.PAT }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
             
             # Set environment variables for docker-compose
             echo "DOCKER_IMAGE=ghcr.io/${{ github.repository }}:latest" > .env
