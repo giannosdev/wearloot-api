@@ -5,7 +5,7 @@ async function bootstrap() {
   try {
 
     const app = await NestFactory.create(AppModule);
-    await app.listen(process.env.PORT ?? 3100);
+    await app.listen(process.env.PORT ?? 3000);
   } catch (err) {
     console.error('Error starting server:', err);
   }
