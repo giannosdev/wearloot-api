@@ -1,23 +1,244 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+enum Role {
+  CLIENT
+  COACH
+}
+
+enum setTypes {
+  REPS
+  DURATION
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
+  id                String             @id @default(cuid())
+  email             String             @unique
+  password          String
+  firstName         String?
+  lastName          String?
+  role              Role               @default(CLIENT)
+  gymId             String?
+  gym               Gym?               @relation(fields: [gymId], references: [id])
+  workouts          WorkoutInstance[]  @relation("ClientWorkouts")
+  coachedWorkouts   WorkoutInstance[]  @relation("CoachWorkouts")
+  clients           User[]             @relation("CoachClients")
+  coachId           String?
+  coach             User?              @relation("CoachClients", fields: [coachId], references: [id])
+  programInstances  ProgramInstance[]  @relation("UserPrograms")
+  assignedPrograms  ProgramInstance[]  @relation("AssignedPrograms")
+  exerciseInstances ExerciseInstance[]
+  metadata          Json?
+  settings          Json?
+  notificationToken String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now())
+}
 
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Gym {
+  id        String    @id @default(cuid())
+  name      String
+  address   String?
+  users     User[]
+  programs  Program[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now())
+}
+
+model Program {
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  gymId             String?
+  gym               Gym?               @relation(fields: [gymId], references: [id])
+  durationDays      Int?
+  rotationDays      Int?
+  /// A Program template is built from allocated workouts.
+  allocatedWorkouts AllocatedWorkout[] @relation("ProgramAllocatedWorkouts")
+  instances         ProgramInstance[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now())
+}
+
+model ProgramInstance {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation("UserPrograms", fields: [userId], references: [id])
+  programId    String
+  program      Program           @relation(fields: [programId], references: [id])
+  assignedById String?
+  assignedBy   User?             @relation("AssignedPrograms", fields: [assignedById], references: [id])
+  chosenDays   Int[]
+  workouts     WorkoutInstance[]
+  startDate    DateTime
+  endDate      DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @default(now())
+}
+
+model Exercise {
+  id                String              @id @default(cuid())
+  name              String
+  description       String?
+  primaryMuscles    MuscleGroup[]       @relation("PrimaryMuscles")
+  secondaryMuscles  MuscleGroup[]       @relation("SecondaryMuscles")
+  equipment         Equipment[]         @relation("ExerciseEquipment")
+  sets              SetDetails[] // Template/default sets, if desired
+  totalSetsDuration Int?
+  videoUrl          String?
+  type              String? // e.g., "Strength", "Cardio"
+  exerciseTypes     ExerciseType[]      @relation("ExerciseType")
+  exerciseInstances ExerciseInstance[]
+  allocations       AllocatedExercise[] // Used only in allocatedWorkouts
+  // Possibly new relation for base workout usage (via WorkoutExercise)
+  workoutExercises  WorkoutExercise[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now())
+}
+
+model ExerciseType {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  exercises Exercise[] @relation("ExerciseType")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now())
+}
+
+model WorkoutExercise {
+  id           String    @id @default(cuid())
+  workoutId    String
+  workout      Workout   @relation(fields: [workoutId], references: [id])
+  exerciseId   String?
+  exercise     Exercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull) // ✅ Fixed relation
+  exerciseData Json?
+  sets         Json?
+  order        Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now())
+}
+
+model AllocatedExercise {
+  id                 String           @id @default(cuid())
+  allocatedWorkoutId String
+  allocatedWorkout   AllocatedWorkout @relation(fields: [allocatedWorkoutId], references: [id])
+  exerciseId         String?
+  exercise           Exercise?        @relation(fields: [exerciseId], references: [id], onDelete: SetNull) // ✅ Fixed relation
+  exerciseData       Json?
+  /// Custom set details for this allocated exercise (e.g. customized reps, weight, etc.)
+  sets               Json
+  order              Int?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now())
+
+  // This was referencing a "Workout" array. Probably not needed for base logic.
+  // Remove or keep if you really need it for something else:
+  // Workout Workout[]
+}
+
+model ExerciseInstance {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  workoutInstanceId String
+  workoutInstance   WorkoutInstance @relation(fields: [workoutInstanceId], references: [id])
+  exerciseId        String
+  exercise          Exercise        @relation(fields: [exerciseId], references: [id])
+  sets              SetDetails[]
+  date              DateTime
+  isSuperset        Boolean         @default(false)
+  supersetGroupId   String?
+  isCompleted       Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now())
+}
+
+model Workout {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  // Remove direct "allocatedExercises" relation: those are for Program context
+  // allocatedExercises AllocatedExercise[]    <-- removed
+  // Also remove "allocatedWorkouts" relation:
+  // allocatedWorkouts AllocatedWorkout[] @relation("WorkoutToAllocated") <-- removed
+
+  // Instead, store base "workoutExercises"
+  workoutExercises WorkoutExercise[]
+
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now())
+  AllocatedWorkout AllocatedWorkout[]
+}
+
+model AllocatedWorkout {
+  id        String   @id @default(cuid())
+  name      String   @default("Untitled Workout")
+  // Make the field optional so we can set it to null if the base workout is removed
+  workoutId String?
+  workout   Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
+  // The rest remains the same
+  allocatedExercises AllocatedExercise[]
+  order              Int?
+  note               String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now())
+  program            Program?            @relation("ProgramAllocatedWorkouts", fields: [programId], references: [id])
+  programId          String?
+  workoutInstances   WorkoutInstance[]   @relation("AllocatedWorkoutInstances")
+}
+
+model WorkoutInstance {
+  id                 String             @id @default(cuid())
+  programInstanceId  String?
+  programInstance    ProgramInstance?   @relation(fields: [programInstanceId], references: [id])
+  allocatedWorkoutId String?
+  allocatedWorkout   AllocatedWorkout?  @relation("AllocatedWorkoutInstances", fields: [allocatedWorkoutId], references: [id])
+  userId             String?
+  client             User?              @relation("ClientWorkouts", fields: [userId], references: [id])
+  coachId            String?
+  coach              User?              @relation("CoachWorkouts", fields: [coachId], references: [id])
+  exercises          ExerciseInstance[]
+  date               DateTime
+  isCompleted        Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now())
+}
+
+model SetDetails {
+  id                 String            @id @default(cuid())
+  setNumber          Int
+  value              Int?
+  type               setTypes?
+  weight             Float?
+  breakTime          Int?
+  exerciseId         String
+  exerciseInstanceId String?
+  exercise           Exercise          @relation(fields: [exerciseId], references: [id])
+  exerciseInstance   ExerciseInstance? @relation(fields: [exerciseInstanceId], references: [id])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @default(now())
+}
+
+model MuscleGroup {
+  id                 String     @id @default(cuid())
+  name               String     @unique
+  exercisesPrimary   Exercise[] @relation("PrimaryMuscles")
+  exercisesSecondary Exercise[] @relation("SecondaryMuscles")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @default(now())
+}
+
+model Equipment {
+  id                String     @id @default(cuid())
+  name              String     @unique
+  exerciseTemplates Exercise[] @relation("ExerciseEquipment")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @default(now())
 }
